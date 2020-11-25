@@ -40,6 +40,7 @@ class PDFViewer(Frame):
 
         self.master.rowconfigure(0, weight=0)
         self.master.rowconfigure(0, weight=0)
+        
 
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=0)
@@ -233,7 +234,8 @@ class PDFViewer(Frame):
     def _rotate(self):
         if self.pdf is None:
             return
-        self.rotate = (self.rotate - 90) % 360
+        self.rotate[self.pageidx] = (self.rotate[self.pageidx] - 90) % 360
+        
         self._update_page()
 
     def _next_page(self):
@@ -289,7 +291,7 @@ class PDFViewer(Frame):
     def _update_page(self):
         page = self.pdf.pages[self.pageidx - 1]
         self.page = page.to_image(resolution=int(self.scale * 80))
-        image = self.page.original.rotate(self.rotate)
+        image = self.page.original.rotate(self.rotate[self.pageidx])
         self.canvas.update_image(image)
         self.page_label.configure(text="Page {} of {}".format(self.pageidx, self.total_pages))
         self.zoom_label.configure(text="Zoom {}%".format(int(self.scale * 100)))
@@ -405,7 +407,7 @@ class PDFViewer(Frame):
             self.total_pages = len(self.pdf.pages)
             self.pageidx = 1
             self.scale = 1.0
-            self.rotate = 0
+            self.rotate = [0]*self.total_pages;
             self._update_page()
             self.master.title("PDFViewer : {}".format(path))
         except (IndexError, IOError, TypeError):
@@ -453,5 +455,4 @@ class PDFViewer(Frame):
         help_frame.minsize(height=h, width=w)
         help_frame.maxsize(height=h, width=w)
         help_frame.rowconfigure(0, weight=1)
-        help_frame.columnconfigure(0, weight=1)
         HelpBox(help_frame, width=w, height=h, bg=BACKGROUND_COLOR, relief=SUNKEN).grid(row=0, column=0)
