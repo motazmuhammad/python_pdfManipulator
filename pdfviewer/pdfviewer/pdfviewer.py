@@ -11,7 +11,7 @@ from pdfviewer.hoverbutton import HoverButton
 from pdfviewer.helpbox import HelpBox
 from pdfviewer.menubox import MenuBox
 from pdfviewer.display_canvas import DisplayCanvas
-
+import decimal
 
 class PDFViewer(Frame):
 
@@ -92,6 +92,10 @@ class PDFViewer(Frame):
         HoverButton(tools, image_path=os.path.join(ROOT_PATH, 'widgets/ocr.png'), command=self._run_ocr,
                     width=50, height=50, bg=BACKGROUND_COLOR, bd=0, tool_tip="Run OCR",
                     highlightthickness=0, activebackground=HIGHLIGHT_COLOR).pack(pady=2)
+        HoverButton(tools, image_path=os.path.join(ROOT_PATH, 'widgets/save.bmp'), command=self._save_as,
+                    width=50, height=50, bg=BACKGROUND_COLOR, bd=0, tool_tip="Save As",
+                    highlightthickness=0, activebackground=HIGHLIGHT_COLOR).pack(pady=2)
+        
 
         file_frame = Frame(tools, width=50, height=50, bg=BACKGROUND_COLOR, bd=0, relief=SUNKEN)
         file_frame.pack(pady=2)
@@ -234,7 +238,7 @@ class PDFViewer(Frame):
     def _rotate(self):
         if self.pdf is None:
             return
-        self.rotate[self.pageidx] = (self.rotate[self.pageidx] - 90) % 360
+        self.rotate = (self.rotate - 90) % 360
         
         self._update_page()
 
@@ -291,7 +295,9 @@ class PDFViewer(Frame):
     def _update_page(self):
         page = self.pdf.pages[self.pageidx - 1]
         self.page = page.to_image(resolution=int(self.scale * 80))
-        image = self.page.original.rotate(self.rotate[self.pageidx])
+        image = self.page.original.rotate(self.rotate)
+        self.pdf.pages[self.pageidx-1].rotation = self.rotate;
+        self.rotate=0;
         self.canvas.update_image(image)
         self.page_label.configure(text="Page {} of {}".format(self.pageidx, self.total_pages))
         self.zoom_label.configure(text="Zoom {}%".format(int(self.scale * 100)))
@@ -407,7 +413,7 @@ class PDFViewer(Frame):
             self.total_pages = len(self.pdf.pages)
             self.pageidx = 1
             self.scale = 1.0
-            self.rotate = [0]*self.total_pages;
+            self.rotate = 0;
             self._update_page()
             self.master.title("PDFViewer : {}".format(path))
         except (IndexError, IOError, TypeError):
@@ -456,3 +462,32 @@ class PDFViewer(Frame):
         help_frame.maxsize(height=h, width=w)
         help_frame.rowconfigure(0, weight=1)
         HelpBox(help_frame, width=w, height=h, bg=BACKGROUND_COLOR, relief=SUNKEN).grid(row=0, column=0)
+
+    def _save_as(self):
+        if self.pdf is None:
+            return
+        pdf_pages = list()
+        for page in self.pdf.pages:
+            image = page.to_image(resolution=100)
+            pdf = pytesseract.image_to_pdf_or_hocr(image.original.rotate(float(page.rotation)), extension='pdf')
+            pdf_pages.append(pdf)
+
+        pdf_writer = PyPDF2.PdfFileWriter()
+        for page in pdf_pages:
+            pdf = PyPDF2.PdfFileReader(io.BytesIO(page))
+            pdf_writer.addPage(pdf.getPage(0))
+
+        dirname = os.path.dirname(self.paths[self.pathidx])
+        filename = os.path.basename(self.paths[self.pathidx])
+
+        path = filedialog.asksaveasfilename(title='Save pdf As', defaultextension='.pdf',
+                                            initialdir=dirname, initialfile=filename,
+                                            filetypes=[('PDF files', '*.pdf'), ('all files', '.*')])
+        if path == '' or path is None:
+            return
+
+        with open(path, 'wb') as out:
+            pdf_writer.write(out)
+
+        self.paths[self.pathidx] = path
+        self._load_file()
